@@ -19,8 +19,10 @@ if not os.path.exists(csv_file):
 model = YOLO("runs/detect/train/weights/model-v2.pt")
 
 # === 3. Buka video / webcam ===
-cap = cv2.VideoCapture("sample-vid.mp4")  # atau rtsp://...
-
+# cap = cv2.VideoCapture("sample-vid.mp4")  # atau rtsp://...
+cap = cv2.VideoCapture(
+    "rtsp://admin:rangga7671234@192.168.2.226:7001/3c2a68b1-a310-a52f-1c33-e1c7e5de0eea?stream=0"
+)
 # === 4. Zone management ===
 zone_file = "zone.json"
 zone_start, zone_end = None, None
@@ -52,6 +54,11 @@ def draw_zone(event, x, y, flags, param):
 
 cv2.namedWindow("Pallet Detection")
 cv2.setMouseCallback("Pallet Detection", draw_zone)
+
+output_file = "output_detected.mp4"
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+out = cv2.VideoWriter(output_file, fourcc, 20.0, (800, 600))  # 20 fps, ukuran sesuai resize
+
 
 # === 5. Counting Pallet ===
 pallet_count = 0
@@ -103,13 +110,20 @@ while cap.isOpened():
         # Garis tepi zona
         cv2.rectangle(frame, zone_start, zone_end, (0,0,255), 2)
     frame_resized = cv2.resize(frame, (800, 600))  # width=800, height=600
-
     cv2.putText(frame_resized, f"Count: {pallet_count}", (50,50),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
+
+
+    # Simpan frame ke video output
+    out.write(frame_resized)
+
+    # cv2.putText(frame_resized, f"Count: {pallet_count}", (50,50),
+    #             cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
 
     cv2.imshow("Pallet Detection", frame_resized)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 cap.release()
+out.release()  
 cv2.destroyAllWindows()
