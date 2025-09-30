@@ -2,8 +2,42 @@ import cv2
 import json
 import os
 import csv
+import requests  # pastikan sudah install: pip install requests
 from ultralytics import YOLO
 from datetime import datetime
+
+# === NX BOOKMARK INTEGRATION STEPS ===
+# 1. Dapatkan NX API URL, cameraId/UUID, username, password
+# 2. Pastikan 'requests' sudah terinstall (pip install requests)
+# 3. Fungsi create_nx_bookmark akan dipanggil saat pallet terdeteksi
+# 4. Bookmark akan muncul di timeline kamera di NX Client
+# === NX API CONFIG ===
+NX_CAMERA_ID = "3c2a68b1-a310-a52f-1c33-e1c7e5de0eea"  # Ganti dengan cameraId/UUID dari NX
+NX_API_URL = f"https://192.168.2.226:7001/rest/v3/devices/{NX_CAMERA_ID}/bookmarks"
+NX_AUTH = ('admin', 'rangga7671234')  # Ganti dengan kredensial NX Anda
+
+def create_nx_bookmark(camera_id, start_time, end_time, description):
+    duration = end_time - start_time
+    payload = {
+        "name": description,
+        "description": "",
+        "startTimeMs": start_time,
+        "durationMs": duration,
+        "tags": [""]
+    }
+    print(f"[NX] Sending bookmark payload: {payload}")
+    try:
+        response = requests.post(
+            NX_API_URL, json=payload, auth=NX_AUTH, verify=False
+        )
+        print(f"[NX] Response status: {response.status_code}")
+        print(f"[NX] Response text: {response.text}")
+        if response.status_code == 200:
+            print(f"[NX] Bookmark berhasil dikirim: {description}")
+        else:
+            print(f"[NX] Gagal kirim bookmark: {response.text}")
+    except Exception as e:
+        print(f"[NX] Error: {e}")
 
 # === 1. Setup CSV ===
 csv_file = "pallet_count.csv"
@@ -19,10 +53,10 @@ if not os.path.exists(csv_file):
 model = YOLO("runs/detect/train/weights/model-v2.pt")
 
 # === 3. Buka video / webcam ===
-# cap = cv2.VideoCapture("sample-vid.mp4")  # atau rtsp://...
-cap = cv2.VideoCapture(
-    "rtsp://admin:rangga7671234@192.168.2.226:7001/3c2a68b1-a310-a52f-1c33-e1c7e5de0eea?stream=0"
-)
+cap = cv2.VideoCapture("sample-vid.mp4")  # atau rtsp://...
+# cap = cv2.VideoCapture(
+#     "rtsp://admin:rangga7671234@192.168.2.226:7001/3c2a68b1-a310-a52f-1c33-e1c7e5de0eea?stream=0"
+# )
 # === 4. Zone management ===
 zone_file = "zone.json"
 zone_start, zone_end = None, None
@@ -99,6 +133,16 @@ while cap.isOpened():
                         writer = csv.writer(f)
                         writer.writerow([now, f"Pallet-{obj_id}", pallet_count])
                     print(f"[INFO] Pallet-{obj_id} counted. Total: {pallet_count}")
+
+                    # === KIRIM BOOKMARK KE NX ===
+                    # Waktu bookmark: gunakan waktu sekarang (epoch ms)
+                    now_epoch = int(datetime.now().timestamp() * 1000)
+                    create_nx_bookmark(
+                        NX_CAMERA_ID,
+                        now_epoch,  # startTime
+                        now_epoch + 5000,  # endTime (5 detik)
+                        f"Pallet-{obj_id} counted: {pallet_count}"
+                    )
 
     # gambar zona
     if zone_start and zone_end:
